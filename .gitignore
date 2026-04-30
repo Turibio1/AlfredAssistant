@@ -1,0 +1,90 @@
+# Arquivos de configuração sensíveis
+.env
+.env.local
+.env.production
+.env.staging
+.env.example
+
+# Ambiente Virtual Python
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs
+*.log
+logs/
+log.txt
+
+# Arquivos temporários
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema Operacional
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Arquivos de backup
+*.bak
+*.backup
+*.old
+
+# Chaves SSH (se houver)
+*.key
+*.pem
+id_rsa
+id_rsa.pub
+
+# Arquivos de configuração específicos
+config.json
+config.yml
+settings.json
+
+# Dados temporários
+temp/
+tmp/
+data/
+
+# Arquivos do yt-dlp
+*.webm
+*.m4a
+*.mp3
+*.flac
+*.wav
+*.ogg
