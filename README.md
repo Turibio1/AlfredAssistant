@@ -45,6 +45,39 @@ DISCORD_TOKEN=seu_token_discord_aqui
 GEMINI_API_KEY=sua_api_key_gemini_aqui
 ```
 
+## 🚀 Fallback com Ollama (Recomendado)
+
+Quando o Gemini ficar sem quota diária, o bot pode usar **Ollama** como fallback - totalmente grátis e local!
+
+### Instalação do Ollama
+
+1. **Baixe Ollama**: https://ollama.ai
+2. **Instale** normalmente para seu sistema operacional
+3. **Abra um terminal** e execute:
+   ```bash
+   ollama serve
+   ```
+4. **Em outro terminal**, baixe um modelo (escolha um):
+   ```bash
+   ollama pull mistral
+   # ou
+   ollama pull llama2
+   ```
+
+### Teste do Ollama
+
+Verifique se está funcionando:
+```bash
+python test_ollama.py
+```
+
+### Configuração no .env (opcional)
+
+Se não estiver usando os valores padrão:
+```env
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=mistral
+```
 ### 4. Permissões do Bot
 No Discord Developer Portal, ative estas intents:
 - ✅ Message Content Intent

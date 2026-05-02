@@ -75,6 +75,7 @@ id_rsa.pub
 config.json
 config.yml
 settings.json
+test_ollama.py
 
 # Dados temporários
 temp/

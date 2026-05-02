@@ -5,6 +5,9 @@ import asyncio
 from collections import deque
 import google.generativeai as genai
 import os
+import json
+import urllib.request
+import urllib.error
 
 async def ask_gemini(query):
     """Faz uma pergunta ao Gemini AI e retorna um embed com a resposta"""
@@ -55,6 +58,15 @@ async def ask_gemini(query):
         )
         print(f"[GEMINI] Resposta recebida: {response.text[:100]}...")
 
+        usage = getattr(response, 'usage_metadata', None)
+        if usage is not None:
+            print(
+                f"[GEMINI] Uso de tokens: prompt={usage.prompt_token_count}, "
+                f"candidates={usage.candidates_token_count}, total={usage.total_token_count}"
+            )
+        else:
+            print("[GEMINI] Uso de tokens: metadados não disponíveis")
+
         # Limita a resposta a 2000 caracteres (limite do Discord)
         resposta = response.text[:1990] + "..." if len(response.text) > 1990 else response.text
 
@@ -84,10 +96,21 @@ async def ask_gemini(query):
         # Tratamento especial para erro de quota
         if "429" in error_msg or "quota" in error_msg.lower() or "ResourceExhausted" in str(type(e)):
             print("[GEMINI] Cota gratuita excedida!")
+            print("[GEMINI] Tentando fallback para Ollama...")
+            fallback_embed = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: ask_ollama_fallback(query)
+            )
+            if fallback_embed is not None:
+                print("[FALLBACK] Resposta fornecida pelo Ollama.")
+                return fallback_embed
+
             embed = discord.Embed(
-                title="❌ Cota Excedida",
+                title="❌ Cota Excedida - Fallback Indisponível",
                 description='**Cota da API Gemini excedida!**\n\n'
-                'A sua quota gratuita diária foi atingida.\n\n'
+                'O fallback do Ollama não está disponível. Verifique:\n'
+                '1. Ollama está rodando? (`ollama serve`)\n'
+                '2. Um modelo foi baixado? (`ollama pull mistral`)\n'
+                '3. Configurações no `.env` estão corretas?\n\n'
                 '**Opções:**\n'
                 '1. Espere até amanhã (as quotas diárias redefinem à meia-noite UTC)\n'
                 '2. Adicione um método de pagamento à sua conta Google para mais quota\n'
@@ -104,6 +127,48 @@ async def ask_gemini(query):
                 color=0xff0000
             )
             return embed
+
+def ask_ollama_fallback(query):
+    """Faz fallback para IA local via Ollama."""
+    ollama_url = os.getenv('OLLAMA_URL', 'http://localhost:11434')
+    ollama_model = os.getenv('OLLAMA_MODEL', 'mistral')
+    
+    print(f'[FALLBACK] Gemini sem tokens. Alternando para Ollama ({ollama_model})...')
+    
+    url = f'{ollama_url}/api/generate'
+    payload = json.dumps({
+        'model': ollama_model,
+        'prompt': query,
+        'stream': False,
+    }).encode('utf-8')
+    
+    headers = {'Content-Type': 'application/json'}
+    
+    request = urllib.request.Request(url, data=payload, headers=headers, method='POST')
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            result = json.loads(response.read().decode('utf-8'))
+    except urllib.error.URLError as e:
+        print(f'[FALLBACK] Ollama não está rodando em {ollama_url}')
+        print(f'[FALLBACK] Dica: Execute "ollama serve" em outro terminal')
+        return None
+    except Exception as e:
+        print(f'[FALLBACK] Erro ao conectar Ollama: {e}')
+        return None
+    
+    text = result.get('response', '')
+    
+    if not text:
+        print('[FALLBACK] Ollama retornou texto vazio.')
+        return None
+    
+    text = text[:1990] + '...' if len(text) > 1990 else text
+    embed = discord.Embed(
+        title='🤖 Resposta da IA alternativa (Ollama)',
+        description=text,
+        color=0x8a2be2,
+    )
+    return embed
 
 # Configuração do yt-dlp para áudio
 YDL_OPTIONS = {
