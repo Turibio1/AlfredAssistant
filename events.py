@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from commands import ask_gemini
 
 # Funções de eventos (recebem o bot como parâmetro)
 
@@ -20,6 +21,14 @@ async def setup_events(bot: commands.Bot):
         
         if message.content.lower() == 'olá':
             await message.channel.send(f'Olá, {message.author.name}!')
+        
+        if message.content.startswith('!'):
+            query = message.content[1:].strip()
+            if query:
+                embed = await ask_gemini(query)
+                embed.set_footer(text=f"Pergunta de {message.author.name}")
+                await message.channel.send(embed=embed)
+            return
         
         await bot.process_commands(message)
     

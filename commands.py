@@ -6,6 +6,105 @@ from collections import deque
 import google.generativeai as genai
 import os
 
+async def ask_gemini(query):
+    """Faz uma pergunta ao Gemini AI e retorna um embed com a resposta"""
+
+    print(f"[GEMINI] Comando iniciado: {query}")
+
+    # Verifica se a API key está configurada
+    api_key = os.getenv('GEMINI_API_KEY')
+    print(f"[GEMINI] API Key carregada: {bool(api_key)}")
+    
+    if not api_key:
+        print("[GEMINI] Erro: API Key não encontrada")
+        embed = discord.Embed(
+            title="❌ Erro",
+            description='**API Key do Gemini não configurada!**\n\n'
+            'Para usar este comando:\n'
+            '1. Acesse: https://makersuite.google.com/app/apikey\n'
+            '2. Crie uma API key gratuita\n'
+            '3. Adicione ao seu arquivo `.env`:\n'
+            '```\n'
+            'GEMINI_API_KEY=sua_api_key_aqui\n'
+            'DISCORD_TOKEN=seu_token_discord\n'
+            '```',
+            color=0xff0000
+        )
+        return embed
+
+    try:
+        # Configura o Gemini
+        print("[GEMINI] Configurando genai...")
+        genai.configure(api_key=api_key)
+        print("[GEMINI] genai configurado")
+
+        print("[GEMINI] Criando modelo...")
+        # Tenta usar gemini-2.5-flash primeiro, depois fallback para outros
+        model = genai.GenerativeModel('models/gemini-2.5-flash')
+        print("[GEMINI] Modelo criado: gemini-2.5-flash")
+
+        # Executa em thread separada para não bloquear o bot
+        print("[GEMINI] Preparando para chamar generate_content...")
+        loop = asyncio.get_event_loop()
+        print("[GEMINI] Event loop obtido")
+        
+        print(f"[GEMINI] Chamando generate_content com pergunta: {query[:50]}...")
+        response = await asyncio.wait_for(
+            loop.run_in_executor(None, lambda: model.generate_content(query)),
+            timeout=30  # Timeout de 30 segundos
+        )
+        print(f"[GEMINI] Resposta recebida: {response.text[:100]}...")
+
+        # Limita a resposta a 2000 caracteres (limite do Discord)
+        resposta = response.text[:1990] + "..." if len(response.text) > 1990 else response.text
+
+        print("[GEMINI] Criando embed...")
+        # Cria embed com a resposta
+        embed = discord.Embed(
+            title="🤖 Resposta do Gemini",
+            description=resposta,
+            color=0x4285f4  # Cor do Google
+        )
+        print("[GEMINI] Embed criado")
+
+        return embed
+
+    except asyncio.TimeoutError:
+        print("[GEMINI] ERRO: Timeout na chamada da API")
+        embed = discord.Embed(
+            title="⏱️ Timeout",
+            description='Gemini demorou muito para responder (timeout de 30s). Tente novamente!',
+            color=0xffa500
+        )
+        return embed
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[GEMINI] ERRO: {type(e).__name__}: {error_msg}")
+        
+        # Tratamento especial para erro de quota
+        if "429" in error_msg or "quota" in error_msg.lower() or "ResourceExhausted" in str(type(e)):
+            print("[GEMINI] Cota gratuita excedida!")
+            embed = discord.Embed(
+                title="❌ Cota Excedida",
+                description='**Cota da API Gemini excedida!**\n\n'
+                'A sua quota gratuita diária foi atingida.\n\n'
+                '**Opções:**\n'
+                '1. Espere até amanhã (as quotas diárias redefinem à meia-noite UTC)\n'
+                '2. Adicione um método de pagamento à sua conta Google para mais quota\n'
+                '3. Acesse: https://ai.google.dev/gemini-api/docs/rate-limits',
+                color=0xff0000
+            )
+            return embed
+        else:
+            import traceback
+            traceback.print_exc()
+            embed = discord.Embed(
+                title="❌ Erro",
+                description=f'Erro ao consultar Gemini: {error_msg[:100]}',
+                color=0xff0000
+            )
+            return embed
+
 # Configuração do yt-dlp para áudio
 YDL_OPTIONS = {
     'format': 'bestaudio/best',
@@ -268,87 +367,11 @@ async def setup_commands(bot: commands.Bot):
 
         print(f"[GEMINI] Comando iniciado: {pergunta}")
 
-        # Verifica se a API key está configurada
-        api_key = os.getenv('GEMINI_API_KEY')
-        print(f"[GEMINI] API Key carregada: {bool(api_key)}")
-        
-        if not api_key:
-            print("[GEMINI] Erro: API Key não encontrada")
-            await interaction.response.send_message(
-                '❌ **API Key do Gemini não configurada!**\n\n'
-                'Para usar este comando:\n'
-                '1. Acesse: https://makersuite.google.com/app/apikey\n'
-                '2. Crie uma API key gratuita\n'
-                '3. Adicione ao seu arquivo `.env`:\n'
-                '```\n'
-                'GEMINI_API_KEY=sua_api_key_aqui\n'
-                'DISCORD_TOKEN=seu_token_discord\n'
-                '```'
-            )
-            return
-
-        print("[GEMINI] Respondendo com defer...")
         await interaction.response.defer()  # Resposta adiada para processamento
 
-        try:
-            # Configura o Gemini
-            print("[GEMINI] Configurando genai...")
-            genai.configure(api_key=api_key)
-            print("[GEMINI] genai configurado")
+        embed = await ask_gemini(pergunta)
+        embed.set_footer(text=f"Pergunta de {interaction.user.name}")
 
-            print("[GEMINI] Criando modelo...")
-            # Tenta usar gemini-2.5-flash primeiro, depois fallback para outros
-            model = genai.GenerativeModel('models/gemini-2.5-flash')
-            print("[GEMINI] Modelo criado: gemini-2.5-flash")
-
-            # Executa em thread separada para não bloquear o bot
-            print("[GEMINI] Preparando para chamar generate_content...")
-            loop = asyncio.get_event_loop()
-            print("[GEMINI] Event loop obtido")
-            
-            print(f"[GEMINI] Chamando generate_content com pergunta: {pergunta[:50]}...")
-            response = await asyncio.wait_for(
-                loop.run_in_executor(None, lambda: model.generate_content(pergunta)),
-                timeout=30  # Timeout de 30 segundos
-            )
-            print(f"[GEMINI] Resposta recebida: {response.text[:100]}...")
-
-            # Limita a resposta a 2000 caracteres (limite do Discord)
-            resposta = response.text[:1990] + "..." if len(response.text) > 1990 else response.text
-
-            print("[GEMINI] Criando embed...")
-            # Cria embed com a resposta
-            embed = discord.Embed(
-                title="🤖 Resposta do Gemini",
-                description=resposta,
-                color=0x4285f4  # Cor do Google
-            )
-            embed.set_footer(text=f"Pergunta de {interaction.user.name}")
-            print("[GEMINI] Embed criado")
-
-            print("[GEMINI] Enviando resposta para Discord...")
-            await interaction.followup.send(embed=embed)
-            print("[GEMINI] Resposta enviada com sucesso!")
-
-        except asyncio.TimeoutError:
-            print("[GEMINI] ERRO: Timeout na chamada da API")
-            await interaction.followup.send('⏱️ Gemini demorou muito para responder (timeout de 30s). Tente novamente!')
-        except Exception as e:
-            error_msg = str(e)
-            print(f"[GEMINI] ERRO: {type(e).__name__}: {error_msg}")
-            
-            # Tratamento especial para erro de quota
-            if "429" in error_msg or "quota" in error_msg.lower() or "ResourceExhausted" in str(type(e)):
-                print("[GEMINI] Cota gratuita excedida!")
-                await interaction.followup.send(
-                    '❌ **Cota da API Gemini excedida!**\n\n'
-                    'A sua quota gratuita diária foi atingida.\n\n'
-                    '**Opções:**\n'
-                    '1. Espere até amanhã (as quotas diárias redefinem à meia-noite UTC)\n'
-                    '2. Adicione um método de pagamento à sua conta Google para mais quota\n'
-                    '3. Acesse: https://ai.google.dev/gemini-api/docs/rate-limits'
-                )
-            else:
-                import traceback
-                traceback.print_exc()
-                await interaction.followup.send(f'❌ Erro ao consultar Gemini: {error_msg[:100]}')
+        print("[GEMINI] Enviando resposta para Discord...")
+        await interaction.followup.send(embed=embed)
+        print("[GEMINI] Resposta enviada com sucesso!")
